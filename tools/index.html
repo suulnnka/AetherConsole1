@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>AetherConsole · 创作工具</title>
+<link rel="stylesheet" href="editor.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  .cards { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+  .card { display: block; width: 320px; padding: 18px 20px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--fg); }
+  .card:hover { border-color: var(--accent); }
+  .card h2 { margin: 0 0 8px; color: var(--accent); font-size: 16px; }
+  .card p { margin: 0; color: var(--dim); }
+  .home { color: var(--faint); }
+</style>
+</head>
+<body>
+<h1 style="color:var(--accent);margin:0;">AetherConsole 创作工具</h1>
+<div class="cards">
+  <a class="card" href="font-editor.html">
+    <h2>字体编辑器</h2>
+    <p>12×12 位图字形,左 2px 入侵 + 下 2px 尾部;内置 ASCII 默认字体,可添加中文 / 假名 / 符号;导出 JSON 与 font.bin。</p>
+  </a>
+  <a class="card" href="gfx-editor.html">
+    <h2>图形编辑器(精灵 / Tile / 地图)</h2>
+    <p>256×256 索引色精灵图,16 色调色板;8×8 tile 编辑、8 倍数任意尺寸精灵、tile 地图(含翻转位);导出 PNG / spritesheet.bin / map.bin。</p>
+  </a>
+</div>
+<p class="home">← <a href="../index.html" style="color:var(--accent2);">返回主机 demo</a></p>
+</body>
+</html>

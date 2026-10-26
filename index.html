@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>AetherConsole</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101014; color: #9aa0aa;
+               font: 12px/1.7 system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center;
+         justify-content: center; gap: 10px; }
+  #stage { position: relative; line-height: 0; }
+  canvas { image-rendering: pixelated; background: #000; display: block;
+           cursor: crosshair; }
+  /* 扫描线叠加层:物理分辨率细线(由 JS 按整数倍缩放周期生成渐变) */
+  #scan { position: absolute; inset: 0; pointer-events: none; }
+  #status { min-height: 1.6em; color: #e0c26c; }
+  #help { color: #565b64; user-select: none; min-height: 1.6em; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="screen"></canvas>
+  <div id="scan"></div>
+</div>
+<div id="status"></div>
+<div id="help"></div>
+
+<script src="js/aetherconsole.js?v=0.6"></script>
+<script src="js/cart-breakout.js?v=0.13"></script>
+<script src="js/cart-vampire.js?v=1.0"></script>
+<script src="js/cart-stargate.js?v=1.0"></script>
+<script src="js/cart-starfall.js?v=1.0"></script>
+<script src="js/cart-racer.js?v=1.0"></script>
+<script src="js/cart-runner.js?v=1.0"></script>
+<script src="js/cart-drop.js?v=1.0"></script>
+<script src="js/cart-magictower.js?v=1.0"></script>
+<script src="js/cart-tidy.js?v=1.0"></script>
+<script src="js/cart-volley.js?v=1.0"></script>
+<script src="js/cart-fps.js?v=1.2"></script>
+<script>
+/* —— 壳(shell):开机菜单 + 缩放上屏 + 键盘/鼠标适配(规格 §5.5 / §7) —— */
+const ac = new AetherConsole();
+const canvas = document.getElementById('screen');
+const scanEl = document.getElementById('scan');
+const statusEl = document.getElementById('status');
+const helpEl = document.getElementById('help');
+
+const CARTS = [BreakoutCart, VampireCart, GateRunnerCart,
+               StarfallCart, AetherGPCart, PixelDashCart, DeepDropCart,
+               MagicTowerCart, TidyUpCart, PuffVolleyCart, PaleCitadelCart];
+const HELPS = [
+  '↑↓ / 鼠标 选择卡带 · Z / Enter / 点击 启动 · 1-4 切换特效 · Esc 返回菜单',
+  'BREAKOUT:←→ / A D 移动 · Z / J 发球 · Enter 开始 / 暂停',
+  'NIGHT SURVIVOR:WASD / 方向键 移动 · 武器自动攻击 · 拾宝石升级三选一 · 打倒 Boss 过关 · Enter 暂停',
+  'GATE RUNNER:鼠标或 ←→↑↓ / WASD 转向 · 自动前进 · 穿过门洞别撞框 · 居中穿过有 PERFECT 加分 · Enter 暂停',
+  'STARFALL:←→↑↓ / WASD 移动 · Z 按住开火 · X 符卡炸弹 · 贴着敌弹擦弹加分 · 每 4 波出 Boss · Enter 暂停',
+  'AETHER GP:↑ 油门 · ↓ 刹车 · ←→ 转向 · 检查点 +12 秒 · 撞车掉速 · 擦身而过 +100 · Enter 暂停',
+  'PIXEL DASH:Z / ↑ 跳(空中再按=二段跳)· ↓ 滑铲 / 空中快落 · 越坑避刺吃金币 · Enter 暂停',
+  'DEEP DROP:←→ 移动 · Z 跳 · 按住 ↓ 穿过平台下落 · 别被洞顶尖刺追上 · 中心落点 PERFECT · 100 层真汉子 · Enter 暂停',
+  'MAGIC TOWER:方向键移动 · 撞怪物出战斗预测,Z 确认 · X 取消 · 钥匙开门 / 宝石涨属性 · 商店金币换血攻防 · 9F 起楼梯上按 X 楼层传送 · Enter 暂停 · 自动存档',
+  'TIDY UP!:方向键 / WASD 移动 · Z 捡起 / 放上货架 · X 或鼠标右键切换地板 / 货架屏 · 拿满 5 件自动去货架 · 放空手自动回地板 · 全部归位过关 · Enter 暂停',
+  'PUFF VOLLEY:←→ / A D 移动 · ↑ / W 跳 · 身体碰到球自动击球(方向看球在身体哪侧)· ←→ 选难度 · 先得 15 分 · Enter 开始 / 暂停',
+  'PALE CITADEL:WASD 移动 · 鼠标瞄准(点击画面锁定指针,Esc 释放)· 左键射击(无限弹药,准星即屏幕中心)· 右键跳 · 消灭全部敌人进入下一波 · Enter 暂停',
+];
+
+/* —— 菜单卡带(壳级:确认选择后由壳装载对应游戏)—— */
+const MenuCart = (function () {
+  const W = 240, H = 180, N = 11, TOP = 42, ROW = 11;
+  const INK = 1, NAVY = 2, SLATE = 3, LGRAY = 4, WHITE = 5, CYAN = 6,
+        GOLD = 7, RED = 8, GREEN = 9;
+  const NAMES = ['BREAKOUT', 'NIGHT SURVIVOR', 'GATE RUNNER', 'STARFALL',
+                 'AETHER GP', 'PIXEL DASH', 'DEEP DROP', 'MAGIC TOWER',
+                 'TIDY UP!', 'PUFF VOLLEY', 'PALE CITADEL'];
+  const SUBS = ['ARCADE DEMO', 'HORDE SURVIVAL', '3D GATE FLIGHT',
+                'DANMAKU SHOOTER', 'FC ROAD RACER', 'ENDLESS RUNNER',
+                'FALL 100 FLOORS', 'MONSTER MATH RPG', 'SORT THEM ALL',
+                'BEACH VOLLEYBALL', '3D WAVE FPS'];
+  let sel = 0;
+  return {
+    name: 'MENU', version: '1.2', filter: 'none',
+    palette: [0x0000, 0x1082, 0x2129, 0x5B30, 0xADB8, 0xFFFF, 0x07FF, 0xFE40, 0xF800, 0x2EED],
+    init() { sel = 0; this.selected = null; },
+    update(api) {
+      const jp = api.justPressed;
+      const c = api.cursor();
+      if (c.on) {                       // 鼠标悬停选择
+        const row = Math.floor((c.y - TOP + 2) / ROW);
+        if (row >= 0 && row < N) sel = row;
+      }
+      if (jp('up')) sel = (sel + N - 1) % N;
+      if (jp('down')) sel = (sel + 1) % N;
+      if (jp('a') || jp('start')) this.selected = sel;
+    },
+    draw(api) {
+      api.cls(INK);
+      for (let i = 0; i < 40; i++) {    // 星尘
+        const x = (i * 53 + api.frame * 0.18) % W, y = (i * 97) % H;
+        api.px(x, y, i % 4 ? NAVY : SLATE);
+      }
+      const tw = Math.round(Math.sin(api.frame * 0.05) * 1.5);
+      api.text('AETHER', (W - api.textWidth('AETHER', 2)) / 2 + 1, 7 + 1, NAVY, 2);
+      api.text('AETHER', (W - api.textWidth('AETHER', 2)) / 2, 7 + tw, CYAN, 2);
+      api.text('CONSOLE', (W - api.textWidth('CONSOLE')) / 2, 23, WHITE);
+      for (let i = 0; i < N; i++) {
+        const y = TOP + i * ROW, on = i === sel;
+        if (on) {
+          api.rect(14, y - 3, 212, ROW - 1, NAVY);
+          api.rect(14, y - 3, 212, 1, CYAN); api.rect(14, y + ROW - 4, 212, 1, CYAN);
+          if (api.frame % 14 < 9) {     // 选中箭头
+            api.px(18, y, GOLD); api.px(19, y, GOLD);
+            api.px(20, y, GOLD); api.px(19, y + 1, GOLD);
+          }
+        }
+        api.text(NAMES[i], 26, y, on ? WHITE : LGRAY);
+        api.text(SUBS[i], 222 - api.textWidth(SUBS[i]), y, on ? GOLD : SLATE);
+      }
+      if (api.frame % 60 < 36)
+        api.text('PRESS Z OR START', (W - api.textWidth('PRESS Z OR START')) / 2, 165, WHITE);
+      api.text('11 CARTS - 240*180 60FPS', (W - api.textWidth('11 CARTS - 240*180 60FPS')) / 2, 173, SLATE);
+    },
+  };
+})();
+
+ac.attach(canvas);
+ac.on('error', err => { statusEl.textContent = '游戏异常,内核已停机:' + err.message; });
+
+let current = -1;
+let wantLock = false;            // 当前卡带是否请求指针锁定(卡带声明 lockPointer)
+function launch(i) {
+  current = i;
+  wantLock = !!(CARTS[i] && CARTS[i].lockPointer);
+  if (!wantLock && document.pointerLockElement) document.exitPointerLock();
+  ac.pause();
+  ac.loadCart(CARTS[i]);
+  ac.start();
+  helpEl.textContent = HELPS[i + 1];
+}
+function toMenu() {
+  current = -1;
+  wantLock = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  ac.pause();
+  ac.loadCart(MenuCart);
+  ac.start();
+  helpEl.textContent = HELPS[0];
+}
+
+/* 整数倍缩放(规格 §5.5):内核只出 240×180,缩放由壳负责 */
+let scale = 1;
+function fit() {
+  scale = Math.max(1, Math.min(Math.floor(innerWidth / 240),
+                               Math.floor((innerHeight - 70) / 180)));
+  canvas.style.width = 240 * scale + 'px';
+  canvas.style.height = 180 * scale + 'px';
+  applyFx(currentFx);          // 尺寸变化时按当前模式重建叠加层
+}
+addEventListener('resize', fit);
+
+/* —— 特效模式(同原壳:扫描线在壳层,CRT/半色调走内核滤镜)—— */
+const FILTERS = ['scanline', 'none', 'crt', 'halftone'];
+const FILTER_CN = { scanline: '扫描线', none: '无', crt: 'CRT', halftone: '半色调' };
+let currentFx = 'scanline';
+
+function applyFx(mode) {
+  currentFx = mode;
+  ac.setFilter(mode === 'scanline' ? 'none' : mode);
+  scanEl.style.background =
+    mode === 'scanline' && scale > 1
+      ? 'repeating-linear-gradient(to bottom,' +
+        'rgba(0,0,0,0) 0px, rgba(0,0,0,0) ' + (scale - 1) + 'px,' +
+        'rgba(0,0,0,0.35) ' + (scale - 1) + 'px, rgba(0,0,0,0.35) ' + scale + 'px)'
+      : 'none';
+  statusEl.textContent = '特效:' + FILTER_CN[mode] +
+    '(' + FILTERS.map((f, i) => (i + 1) + '=' + FILTER_CN[f]).join(' ') + ')';
+}
+fit();
+applyFx('scanline');            // 默认扫描线
+
+/* 规范键位(壳可改键,规格 §7.2):WASD/方向键=方向,Z/J=主键,X/K=副键,Enter=Start */
+const KEYMAP = {
+  ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
+  ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  KeyZ: 'a', KeyJ: 'a', KeyX: 'b', KeyK: 'b', Enter: 'start',
+};
+const state = { up: false, down: false, left: false, right: false,
+                a: false, b: false, start: false,
+                cursorX: 120, cursorY: 90, cursorOn: false,
+                mdx: 0, mdy: 0, lock: false };   // 锁定模式:原始位移增量(§7.3)
+
+let escAt = 0;                  // 双击 Esc 才回菜单,防误触丢局
+addEventListener('keydown', e => {
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    if (current === -1) return;
+    const now = performance.now();
+    if (now - escAt < 900) { escAt = 0; toMenu(); }
+    else {
+      escAt = now;
+      statusEl.textContent = '再按一次 Esc 返回菜单(当前进度将丢弃)';
+    }
+    return;
+  }
+  const m = /^Digit([1-4])$/.exec(e.code);
+  if (m) { applyFx(FILTERS[+m[1] - 1]); return; }
+  const k = KEYMAP[e.code];
+  if (!k) return;
+  e.preventDefault();
+  state[k] = true;
+  if (!ac.running && !ac.halted) ac.start();
+});
+addEventListener('keyup', e => {
+  const k = KEYMAP[e.code];
+  if (!k) return;
+  e.preventDefault();
+  state[k] = false;
+});
+
+/* —— 鼠标适配(规格 §7.2/§7.3):左/右键=主/副键,光标换算到 240×180 系;
+   指针锁定卡带(FPS):点击请求锁定(优先 unadjustedMovement 原始输入,
+   免系统鼠标加速,线性手感;不支持时退普通锁定);
+   锁定与否都送鼠标位移增量 mdx/mdy——未锁定时同样"动多少转多少",
+   仅光标到达窗口边缘后无法继续(点击锁定解除该限制) —— */
+function tryLock() {
+  try {
+    let p;
+    try { p = canvas.requestPointerLock({ unadjustedMovement: true }); }
+    catch (e1) { p = canvas.requestPointerLock(); }
+    if (p && p.catch)
+      p.catch(() => {          // 平台拒绝 unadjustedMovement:退普通锁定
+        try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); }
+        catch (e2) {}
+      });
+  } catch (err) {}             // 环境不支持锁定:静默,游戏按未锁定相对增量转
+}
+canvas.addEventListener('mousemove', e => {
+  state.mdx += e.movementX || 0;               // 位移增量:锁定/未锁定一致送入
+  state.mdy += e.movementY || 0;
+  if (document.pointerLockElement === canvas) return;   // 锁定时无绝对坐标意义
+  const r = canvas.getBoundingClientRect();
+  state.cursorX = (e.clientX - r.left) / scale;
+  state.cursorY = (e.clientY - r.top) / scale;
+  state.cursorOn = true;
+});
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  if (wantLock && document.pointerLockElement !== canvas) tryLock();
+  if (e.button === 0) state.a = true;
+  else if (e.button === 2) state.b = true;
+  if (!ac.running && !ac.halted) ac.start();
+});
+document.addEventListener('pointerlockchange', () => {
+  state.lock = document.pointerLockElement === canvas;
+  if (!state.lock) { state.mdx = 0; state.mdy = 0; }
+});
+addEventListener('mouseup', e => {
+  if (e.button === 0) state.a = false;
+  else if (e.button === 2) state.b = false;
+});
+canvas.addEventListener('mouseleave', () => {
+  if (document.pointerLockElement === canvas) return;
+  state.cursorOn = false;
+  state.a = false;
+  state.b = false;
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* 壳按帧把虚拟键位 + 光标送入内核(规格 §7.1:60Hz 送入);
+   位移增量为"送入即清零"的累计值,内核逐逻辑帧结算 */
+(function pushLoop() {
+  if (MenuCart.selected != null) {
+    const i = MenuCart.selected;
+    MenuCart.selected = null;
+    launch(i);
+  }
+  ac.pushInput(state);
+  state.mdx = 0;
+  state.mdy = 0;
+  requestAnimationFrame(pushLoop);
+})();
+
+addEventListener('blur', () => {
+  for (const k in state) if (typeof state[k] === 'boolean') state[k] = false;
+  state.cursorOn = false;
+  state.mdx = 0;
+  state.mdy = 0;
+  ac.pause();
+  statusEl.textContent = '已暂停(窗口失焦),按任意游戏键继续';
+});
+
+/* 开机 → 菜单 */
+ac.loadCart(MenuCart);
+ac.start();
+helpEl.textContent = HELPS[0];
+</script>
+</body>
+</html>

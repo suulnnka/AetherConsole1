@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>AetherConsole · 图形编辑器</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header class="toolbar">
+  <span class="title">图形编辑器</span>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="sprite">精灵</button>
+    <button class="tab" data-tab="tile">Tile</button>
+    <button class="tab" data-tab="map">地图</button>
+  </div>
+  <span class="sep"></span>
+  <button id="btnUndo" class="btn icon" title="撤销 Ctrl+Z">↶</button>
+  <button id="btnRedo" class="btn icon" title="重做 Ctrl+Y">↷</button>
+  <span class="sep"></span>
+  <span class="label kv">调色板</span>
+  <div class="palette" id="palette"></div>
+  <span class="grow"></span>
+  <span class="hint">B铅笔 E橡皮 L直线 R矩形 F填充 I吸管 G网格</span>
+  <div class="menu" id="ioMenu">
+    <button class="btn" id="ioBtn">导入 / 导出 ▾</button>
+  </div>
+  <button id="btnNew" class="btn danger">新建项目</button>
+</header>
+
+<div class="main">
+  <aside class="side" style="width: 252px;" id="leftPanel">
+    <!-- 精灵页签 -->
+    <div id="panel-sprite" class="leftPane" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div class="panel-title">精灵<span class="grow"></span><span id="sprCount" class="kv"></span></div>
+      <div style="padding:6px 8px;display:flex;gap:5px;">
+        <button id="sprNew" class="btn primary" style="flex:1;">+ 新建</button>
+        <button id="sprDup" class="btn" title="复制当前精灵">复制</button>
+        <button id="sprDel" class="btn danger">删除</button>
+      </div>
+      <div class="list" id="sprList"></div>
+      <div style="border-top:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:6px;" id="sprProps"></div>
+    </div>
+    <!-- Tile 页签 -->
+    <div id="panel-tile" class="leftPane" style="display:none;flex-direction:column;flex:1;min-height:0;">
+      <div class="panel-title">Tile 8×8</div>
+      <div style="padding:8px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button id="tilePrev" class="btn icon">◀</button>
+          <input id="tileIdx" type="number" min="0" max="1023" style="flex:1;text-align:center;">
+          <button id="tileNext" class="btn icon">▶</button>
+        </div>
+        <div class="kv" id="tilePos"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          <button class="btn opTile" data-op="fliph">↔ 翻转</button>
+          <button class="btn opTile" data-op="flipv">↕ 翻转</button>
+          <button class="btn opTile" data-op="rotl">↺ 旋转</button>
+          <button class="btn opTile" data-op="rotr">↻ 旋转</button>
+          <button class="btn opTile" data-op="copy">复制</button>
+          <button class="btn opTile" data-op="paste">粘贴</button>
+          <button class="btn opTile danger" data-op="clear">清空</button>
+        </div>
+        <div class="kv">Tile 索引 = 行×32+列,共 32×32=1024 个;地图条目 = 索引 + 水平/垂直翻转位。</div>
+      </div>
+    </div>
+    <!-- 地图页签 -->
+    <div id="panel-map" class="leftPane" style="display:none;flex-direction:column;flex:1;min-height:0;">
+      <div class="panel-title">地图<span class="grow"></span><span id="mapInfo" class="kv"></span></div>
+      <div style="padding:8px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;flex-wrap:wrap;gap:5px;" id="mapTools"></div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <label class="kv"><input type="checkbox" id="mapFlipH"> 水平翻转放置</label>
+          <label class="kv"><input type="checkbox" id="mapFlipV"> 垂直翻转放置</label>
+        </div>
+        <label class="kv"><input type="checkbox" id="mapGrid" checked> 显示网格</label>
+        <div class="kv" id="brushInfo"></div>
+        <div style="display:flex;gap:5px;">
+          <button id="mapResize" class="btn">调整尺寸</button>
+          <button id="mapFill" class="btn">填充笔刷</button>
+          <button id="mapClear" class="btn danger">清空</button>
+        </div>
+        <div class="kv">右侧精灵图上拖选矩形 = 笔刷;吸管可直接吸取地图上的 tile。</div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div class="toolrow" id="editTools"></div>
+    <div class="work centered"><div class="scroller" id="editScroll" style="max-width:100%;max-height:100%;"><canvas id="edit" class="edit"></canvas></div></div>
+    <div class="toolrow" id="zoomRow"></div>
+  </section>
+
+  <aside class="side right" style="width: 306px;">
+    <div class="panel-title">
+      <span>精灵图 256×256</span><span class="grow"></span>
+      <button id="ovZoomOut" class="btn icon" title="缩小">−</button>
+      <span id="ovZoomLabel" class="kv" style="min-width:2em;text-align:center;">1×</span>
+      <button id="ovZoomIn" class="btn icon" title="放大">+</button>
+    </div>
+    <div class="scroller" style="flex:1;padding:6px;"><canvas id="sheet" class="edit"></canvas></div>
+    <div class="panel-title">笔刷 / 选区预览</div>
+    <div style="padding:8px;display:flex;align-items:flex-start;gap:10px;">
+      <canvas id="brushPrev" style="background:#0b0b0e;border:1px solid var(--line);border-radius:3px;"></canvas>
+      <div class="kv" id="brushDesc" style="flex:1;"></div>
+    </div>
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span id="st1"></span><span id="st2"></span><span id="st3"></span>
+</footer>
+
+<script src="editor-common.js"></script>
+<script src="gfx-editor.js"></script>
+</body>
+</html>

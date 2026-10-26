@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>AetherConsole · 字体编辑器</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header class="toolbar">
+  <span class="title">字体编辑器</span>
+  <span class="kv">12×12 主区 + 左 2px 入侵 + 下 2px 尾部</span>
+  <span class="sep"></span>
+  <button id="btnUndo" class="btn icon" title="撤销 Ctrl+Z">↶</button>
+  <button id="btnRedo" class="btn icon" title="重做 Ctrl+Y">↷</button>
+  <span class="sep"></span>
+  <button id="btnAdd" class="btn primary">+ 添加字符</button>
+  <button id="btnDel" class="btn danger">删除字符</button>
+  <span class="sep"></span>
+  <button id="btnImport" class="btn">导入</button>
+  <button id="btnExportJson" class="btn">导出 JSON</button>
+  <button id="btnExportBin" class="btn">导出 font.bin</button>
+  <span class="grow"></span>
+  <span class="hint">草稿自动保存于浏览器 · 快捷键 B铅笔 E橡皮 L直线 R矩形 F填充 方向键移位</span>
+  <button id="btnReset" class="btn danger" title="丢弃全部修改,恢复内置默认字体">重置默认字体</button>
+</header>
+
+<div class="main">
+  <aside class="side" style="width: 232px;">
+    <div class="panel-title">字符集<span class="grow"></span><span id="charCount" class="kv"></span></div>
+    <div style="padding: 6px 8px 2px;"><input id="search" type="text" placeholder="搜索字符或 U+4E2D" style="width: 100%;"></div>
+    <div class="list" id="charList"></div>
+  </aside>
+
+  <section class="center">
+    <div class="toolrow" id="toolRow"></div>
+    <div class="work" style="display: flex; flex-direction: column; align-items: center; gap: 12px; justify-content: center;">
+      <canvas id="strip" style="background: #0b0b0e; border: 1px solid var(--line); border-radius: 4px;"></canvas>
+      <canvas id="glyph" class="edit"></canvas>
+    </div>
+    <div class="toolrow" id="opRow"></div>
+  </section>
+
+  <aside class="side right" style="width: 356px;">
+    <div class="panel-title">预览</div>
+    <div style="padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+      <textarea id="sample" rows="3" style="width: 100%; resize: vertical; user-select: text;">Hello, AetherConsole!
+0123456789 ABC xyz ?!
+你好,梦幻主机!
+こんにちは世界☆</textarea>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <span class="kv">放大</span>
+        <button class="btn" data-scale="1">1×</button>
+        <button class="btn" data-scale="2">2×</button>
+        <button class="btn" data-scale="3">3×</button>
+        <label class="kv"><input type="checkbox" id="optGrid"> 网格</label>
+        <label class="kv"><input type="checkbox" id="optBox" checked> 字格</label>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="kv">前景</span><input type="color" id="fgColor" value="#e8e8ec">
+        <span class="kv">背景</span><input type="color" id="bgColor" value="#0b0b0e">
+      </div>
+    </div>
+    <div class="scroller" style="flex: 1; padding: 0 8px 8px;">
+      <canvas id="preview"></canvas>
+    </div>
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span id="stChar"></span><span id="stCell"></span><span id="stStat"></span>
+</footer>
+
+<script src="editor-common.js"></script>
+<script src="default-font.js"></script>
+<script src="font-editor.js"></script>
+</body>
+</html>
