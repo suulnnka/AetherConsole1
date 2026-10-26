@@ -133,3 +133,7 @@
 - `index.html` — 壳:开机菜单(11 卡带)+ 整数倍缩放 + 键盘/鼠标到虚拟键位与光标的适配
 - `tools/` — 阶段二编辑器:`font-editor`(字体)、`gfx-editor`(精灵/Tile/地图)、共用样式与工具库;`smoke.js` 为卡带冒烟测试(Node 桩内核随机输入跑帧,`node tools/smoke.js [帧数]`);`mt-check.mjs` 为魔塔地图 / 数值平衡校验(`node tools/mt-check.mjs`)
 - `docs/spec.md` — 规格说明书
+
+## 许可
+
+[MIT](LICENSE) © suulnnka(魔塔卡带致敬 21 层魔塔,原作者开放版权)
